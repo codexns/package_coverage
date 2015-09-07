@@ -1,0 +1,25 @@
+[
+    {
+        "caption": "SubTest: Run Package Tests",
+        "command": "subtest_run"
+    },
+    {
+        "caption": "SubTest: Run Package Tests Coverage",
+        "command": "subtest_run", "args":
+        {
+            "do_coverage": true
+        }
+    },
+    {
+        "caption": "SubTest: Set Coverage Database",
+        "command": "subtest_set_coverage_database"
+    },
+    {
+        "caption": "SubTest: Display Coverage Report",
+        "command": "subtest_display_coverage_report"
+    },
+    {
+        "caption": "SubTest: Cleanup Coverage Reports",
+        "command": "subtest_cleanup_coverage_reports"
+    }
+]

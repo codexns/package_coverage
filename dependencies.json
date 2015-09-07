@@ -1,0 +1,35 @@
+{
+	"windows": {
+		"<3000": [
+			"multiprocessing",
+			"coverage",
+			"sqlite3",
+			"shellenv"
+		],
+		">=3000": [
+			"coverage",
+			"sqlite3",
+			"shellenv"
+		]
+	},
+	"osx": {
+		"<3000": [
+			"coverage",
+			"shellenv"
+		],
+		">=3000": [
+			"multiprocessing",
+			"coverage",
+			"sqlite3",
+			"shellenv"
+		]
+	},
+	"linux": {
+		"*": [
+			"multiprocessing",
+			"coverage",
+			"sqlite3",
+			"shellenv"
+		]
+	}
+}
