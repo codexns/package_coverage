@@ -39,8 +39,8 @@ tracks coverage results. One of the most convenient options is to store it in
 a Dropbox or Google Drive folder that is automatically synced between machines.
 
  1. [Create the `dev` Directory](#create-the-dev-directory)
- 2. [Write Tests in `dev/tests.py`](#write-tests-in-dev-tests-py)
- 3. [Create `dev/reloader.py`](#create-dev-reloader-py)
+ 2. [Write Tests in `dev/tests.py`](#write-tests-in-devtestspy)
+ 3. [Create `dev/reloader.py`](#create-devreloaderpy)
 
 ### Create the `dev` Directory
 
