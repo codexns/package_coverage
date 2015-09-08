@@ -1,25 +1,25 @@
 [
     {
-        "caption": "SubTest: Run Package Tests",
-        "command": "subtest_run"
+        "caption": "Package Coverage: Run Tests",
+        "command": "package_coverage_exec"
     },
     {
-        "caption": "SubTest: Run Package Tests Coverage",
-        "command": "subtest_run", "args":
+        "caption": "Package Coverage: Measure Coverage",
+        "command": "package_coverage_exec", "args":
         {
             "do_coverage": true
         }
     },
     {
-        "caption": "SubTest: Set Coverage Database",
-        "command": "subtest_set_coverage_database"
+        "caption": "Package Coverage: Set Database Path",
+        "command": "package_coverage_set_database_path"
     },
     {
-        "caption": "SubTest: Display Coverage Report",
-        "command": "subtest_display_coverage_report"
+        "caption": "Package Coverage: Display Report",
+        "command": "package_coverage_display_report"
     },
     {
-        "caption": "SubTest: Cleanup Coverage Reports",
-        "command": "subtest_cleanup_coverage_reports"
+        "caption": "Package Coverage: Cleanup Reports",
+        "command": "package_coverage_cleanup_reports"
     }
 ]

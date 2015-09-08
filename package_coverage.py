@@ -8,25 +8,25 @@ import threading
 import imp
 import time
 import unittest
-import sublime  #pylint: disable=F0401
-import sublime_plugin  #pylint: disable=F0401
+import sublime
+import sublime_plugin
 import coverage
 import coverage.files
-import shellenv  #pylint: disable=F0401
+import shellenv
 import sqlite3
 import subprocess
 import webbrowser
 import shutil
 from datetime import datetime
+from textwrap import dedent
 
 if sys.version_info >= (3,):
     from io import StringIO
 else:
-    from cStringIO import StringIO  #pylint: disable=F0401
+    from cStringIO import StringIO
 
 
-
-class SubtestRunCommand(sublime_plugin.WindowCommand):  #pylint: disable=W0232
+class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
 
     """
     Runs the tests for a package and displays the output in an output panel
@@ -36,10 +36,14 @@ class SubtestRunCommand(sublime_plugin.WindowCommand):  #pylint: disable=W0232
         testable_packages = find_testable_packages()
 
         if not testable_packages:
-            sublime.error_message(u'SubTest\n\nNo testable packages could be found')
+            sublime.error_message(format_message('''
+                Package Coverage
+
+                No testable packages could be found
+            '''))
             return
 
-        settings = sublime.load_settings('SubTest.sublime-settings')
+        settings = sublime.load_settings('Package Coverage.sublime-settings')
         self.coverage_database = get_setting(self.window, settings, 'coverage_database')
         self.do_coverage = do_coverage
         self.packages = testable_packages
@@ -95,22 +99,25 @@ class SubtestRunCommand(sublime_plugin.WindowCommand):  #pylint: disable=W0232
             old_length = len(package_dir)
             new_length = len(package_name) + 2
 
-            coverage_output = buffer.getvalue()
+            output = buffer.getvalue()
 
             # Shorten the file paths to be relative to the Packages dir
-            coverage_output = coverage_output.replace(package_dir, './' + package_name)
-            coverage_output = coverage_output.replace('-' * old_length, '-' * new_length)
-            coverage_output = coverage_output.replace('Name' + (' ' * (old_length - 4)), 'Name' + (' ' * (new_length - 4)))
-            coverage_output = coverage_output.replace('TOTAL' + (' ' * (old_length - 5)), 'TOTAL' + (' ' * (new_length - 5)))
+            output = output.replace(package_dir, './' + package_name)
+            output = output.replace('-' * old_length, '-' * new_length)
+            output = output.replace('Name' + (' ' * (old_length - 4)), 'Name' + (' ' * (new_length - 4)))
+            output = output.replace('TOTAL' + (' ' * (old_length - 5)), 'TOTAL' + (' ' * (new_length - 5)))
 
-            panel_queue.write(coverage_output)
+            panel_queue.write(output)
 
         panel_queue.write('\x04')
         t1.join()
 
         if self.do_coverage and db:
             if not is_git_clean(package_dir):
-                print('SubTest: not saving results to coverage database since git repository has modified files')
+                print(format_message('''
+                    Package Coverage: not saving results to coverage database
+                    since git repository has modified files
+                '''))
                 return
 
             commit_hash, commit_date, summary = git_commit_info(package_dir)
@@ -165,10 +172,10 @@ class SubtestRunCommand(sublime_plugin.WindowCommand):  #pylint: disable=W0232
             db.commit()
             cursor.close()
 
-            print('SubTest: saved results to coverage database')
+            print('Package Coverage: saved results to coverage database')
 
 
-class SubtestSetCoverageDatabaseCommand(sublime_plugin.WindowCommand):  #pylint: disable=W0232
+class PackageCoverageSetDatabasePathCommand(sublime_plugin.WindowCommand):
 
     """
     Allows the user to set the path to the sqlite database to store coverage
@@ -182,11 +189,11 @@ class SubtestSetCoverageDatabaseCommand(sublime_plugin.WindowCommand):  #pylint:
         if self.has_project_api:
             self.has_project = len(self.window.project_file_name()) > 0
 
-        subtest_settings = sublime.load_settings('SubTest.sublime-settings')
-        example_location = os.path.expanduser('~/Dropbox/subtest_coverage.sqlite')
+        coverage_settings = sublime.load_settings('Package Coverage.sublime-settings')
+        example_location = os.path.expanduser('~/Dropbox/package_coverage.sqlite')
         existing_coverage_database = get_setting(
             self.window,
-            subtest_settings,
+            coverage_settings,
             'coverage_database',
             example_location
         )
@@ -228,12 +235,25 @@ class SubtestSetCoverageDatabaseCommand(sublime_plugin.WindowCommand):  #pylint:
         requested_basename = os.path.basename(requested_path)
 
         if requested_basename == '':
-            sublime.error_message('SubTest\n\nNo filename provided for coverage database')
+            sublime.error_message(format_message('''
+                Package Coverage
+
+                No filename provided for coverage database
+            '''))
             self.show_input(requested_path)
             return
 
         if not os.path.exists(requested_dirname) or not os.path.dirname(requested_dirname):
-            sublime.error_message('SubTest\n\nFolder provided for coverage database does not exist:\n\n%s' % requested_dirname)
+            sublime.error_message(format_message(
+                '''
+                Package Coverage
+
+                Folder provided for coverage database does not exist:
+
+                %s
+                ''',
+                [requested_dirname]
+            ))
             self.show_input(requested_path)
             return
 
@@ -241,19 +261,19 @@ class SubtestSetCoverageDatabaseCommand(sublime_plugin.WindowCommand):  #pylint:
             project_data = self.window.project_data()
             if 'settings' not in project_data:
                 project_data['settings'] = {}
-            if 'SubTest' not in project_data['settings']:
-                project_data['settings']['SubTest'] = {}
-            project_data['settings']['SubTest']['coverage_database'] = requested_path
+            if 'Package Coverage' not in project_data['settings']:
+                project_data['settings']['Package Coverage'] = {}
+            project_data['settings']['Package Coverage']['coverage_database'] = requested_path
             self.window.set_project_data(project_data)
         else:
-            subtest_settings = sublime.load_settings('SubTest.sublime-settings')
-            subtest_settings.set('coverage_database', requested_path)
-            sublime.save_settings('SubTest.sublime-settings')
+            coverage_settings = sublime.load_settings('Package Coverage.sublime-settings')
+            coverage_settings.set('coverage_database', requested_path)
+            sublime.save_settings('Package Coverage.sublime-settings')
 
-        sublime.status_message('SubTest coverage database path saved')
+        sublime.status_message('Package Coverage coverage database path saved')
 
 
-class SubtestDisplayCoverageReportCommand(sublime_plugin.WindowCommand):  #pylint: disable=W0232
+class PackageCoverageDisplayReportCommand(sublime_plugin.WindowCommand):
 
     """
     Allows the user to pick a commit and show a report of coverage details in
@@ -264,10 +284,14 @@ class SubtestDisplayCoverageReportCommand(sublime_plugin.WindowCommand):  #pylin
         testable_packages = find_testable_packages()
 
         if not testable_packages:
-            sublime.error_message(u'SubTest\n\nNo testable packages could be found')
+            sublime.error_message(format_message('''
+                Package Coverage
+
+                No testable packages could be found
+            '''))
             return
 
-        settings = sublime.load_settings('SubTest.sublime-settings')
+        settings = sublime.load_settings('Package Coverage.sublime-settings')
         self.coverage_database = get_setting(self.window, settings, 'coverage_database')
         self.packages = testable_packages
         self.window.show_quick_panel(testable_packages, self.selected_package)
@@ -286,7 +310,7 @@ class SubtestDisplayCoverageReportCommand(sublime_plugin.WindowCommand):  #pylin
 
         package_name = self.packages[index]
 
-        settings = sublime.load_settings('SubTest.sublime-settings')
+        settings = sublime.load_settings('Package Coverage.sublime-settings')
         coverage_database = get_setting(self.window, settings, 'coverage_database')
 
         self.package_name = package_name
@@ -359,7 +383,14 @@ class SubtestDisplayCoverageReportCommand(sublime_plugin.WindowCommand):  #pylin
         """
 
         if not commit_hashes:
-            sublime.error_message(u'SubTest\n\nNo coverage results exists for %s' % self.package_name)
+            sublime.error_message(format_message(
+                '''
+                Package Coverage
+
+                No coverage results exists for %s
+                ''',
+                [self.package_name]
+            ))
             return
 
         self.hashes = commit_hashes
@@ -453,7 +484,8 @@ class SubtestDisplayCoverageReportCommand(sublime_plugin.WindowCommand):  #pylin
 
         cov = coverage.Coverage(data_file=data_file_path)
         cov.load()
-        cov.html_report(directory=report_dir, title='%s (%s %s) coverage report' % (package_name, commit_hash, commit_summary))
+        title = '%s (%s %s) coverage report' % (package_name, commit_hash, commit_summary)
+        cov.html_report(directory=report_dir, title=title)
 
         html_path = os.path.join(report_dir, 'index.html')
         if sys.platform != 'win32':
@@ -461,7 +493,7 @@ class SubtestDisplayCoverageReportCommand(sublime_plugin.WindowCommand):  #pylin
         webbrowser.open_new(html_path)
 
 
-class SubtestCleanupCoverageReportsCommand(sublime_plugin.WindowCommand):  #pylint: disable=W0232
+class PackageCoverageCleanupReportsCommand(sublime_plugin.WindowCommand):
 
     """
     Deletes all HTML coverage reports currently on disk
@@ -471,7 +503,11 @@ class SubtestCleanupCoverageReportsCommand(sublime_plugin.WindowCommand):  #pyli
         testable_packages = find_testable_packages()
 
         if not testable_packages:
-            sublime.error_message(u'SubTest\n\nNo cleanable packages could be found')
+            sublime.error_message(format_message('''
+                Package Coverage
+
+                No cleanable packages could be found
+            '''))
             return
 
         self.packages_path = sublime.packages_path()
@@ -494,7 +530,11 @@ class SubtestCleanupCoverageReportsCommand(sublime_plugin.WindowCommand):  #pyli
                 cleanable_packages.append(testable_package)
 
         if not cleanable_packages:
-            sublime.error_message(u'SubTest\n\nNo cleanable packages could be found')
+            sublime.error_message(format_message('''
+                Package Coverage
+
+                No cleanable packages could be found
+            '''))
             return
 
         self.packages = cleanable_packages
@@ -546,7 +586,7 @@ class SubtestCleanupCoverageReportsCommand(sublime_plugin.WindowCommand):  #pyli
         # Since this method is running in a thread, we schedule the result
         # notice to be run from the main UI thread
         def show_completed():
-            message = 'SubTest: coverage reports successfully cleaned for %s' % package_name
+            message = 'Package Coverage: coverage reports successfully cleaned for %s' % package_name
             print(message)
             sublime.status_message(message)
 
@@ -555,14 +595,14 @@ class SubtestCleanupCoverageReportsCommand(sublime_plugin.WindowCommand):  #pyli
 
 def get_setting(window, settings, name, default=None):
     """
-    Retrieves a setting from the current project, of the editor-wide SubTest
+    Retrieves a setting from the current project, of the editor-wide Package Coverage
     settings file.
 
     :param window:
         The current sublime.Window object
 
     :param settings:
-        The sublime.Settings object for SubTest.sublime-settings
+        The sublime.Settings object for Package Coverage.sublime-settings
 
     :param name:
         A unicode string of the name of the setting to retrieve
@@ -574,7 +614,7 @@ def get_setting(window, settings, name, default=None):
         The setting value, or the default value
     """
 
-    window_settings = window.active_view().settings().get('SubTest', {})
+    window_settings = window.active_view().settings().get('Package Coverage', {})
     if name in window_settings:
         return window_settings[name]
     return settings.get(name, default)
@@ -651,7 +691,7 @@ def create_resources(window, package_name, package_dir):
 
     if os.path.exists(reloader_path):
         reloader_module_info = imp.find_module('reloader', ["./dev"])
-        _ = imp.load_module(reloader_module_name, *reloader_module_info)
+        imp.load_module(reloader_module_name, *reloader_module_info)
 
     dev_module_info = imp.find_module('dev', ["."])
     imp.load_module(dev_module_name, *dev_module_info)
@@ -687,7 +727,7 @@ def display_results(headline, panel, panel_queue, db_results_file):
     def write_to_panel(chars):
         sublime.set_timeout(lambda: panel.run_command('insert', {'characters': chars}), 10)
 
-    write_to_panel(u'%s\n\n  ' % headline)
+    write_to_panel('%s\n\n  ' % headline)
 
     while True:
         chars = panel_queue.get()
@@ -699,12 +739,14 @@ def display_results(headline, panel, panel_queue, db_results_file):
 
         if chars[-1] == '\x04':
             chars = chars[0:-1]
-            db_results_file.write(chars)
+            if db_results_file:
+                db_results_file.write(chars)
             wrapped_chars = wrapped_chars[0:-1]
             write_to_panel(wrapped_chars)
             break
 
-        db_results_file.write(chars)
+        if db_results_file:
+            db_results_file.write(chars)
         write_to_panel(wrapped_chars)
 
 
@@ -804,7 +846,7 @@ def open_database(coverage_database):
     """)
     if len(cursor.fetchall()) != 1:
         if sys.version_info >= (3,):
-            sql_bytes = sublime.load_binary_resource('Packages/SubTest/coverage.sql')
+            sql_bytes = sublime.load_binary_resource('Packages/Package Coverage/coverage.sql')
         else:
             dirname = os.path.dirname(__file__)
             with open(os.path.join(dirname, 'coverage.sql'), 'rb') as f:
@@ -837,3 +879,63 @@ def find_testable_packages():
             continue
         testable_packages.append(name)
     return testable_packages
+
+
+def format_message(string, params=None, strip=True, indent=None):
+    """
+    Takes a multi-line string and does the following:
+
+     - dedents
+     - removes a single leading newline if the second character is not a newline also
+     - converts newlines with text before and after into a single line
+     - removes a single trailing newline if the second-to-laster character is not a newline also
+
+    :param string:
+        The string to format
+
+    :param params:
+        Params to interpolate into the string
+
+    :param strip:
+        If the last newline in the string should be removed
+
+    :param indent:
+        If all lines should be indented by a set indent after being dedented
+
+    :return:
+        The formatted string
+    """
+
+    output = string
+
+    # Only dedent if not a single-line string. This allows for
+    # single-line-formatted string to be printed that include intentional
+    # whitespace.
+    if output.find('\n') != -1:
+        output = dedent(output)
+
+    # If the string starts with just a newline, we want to trim it because
+    # it is a side-effect of the code formatting, but if there are two newlines
+    # then that means we intended there to be newlines at the beginning
+    if output[0] == '\n' and output[1] != '\n':
+        output = output[1:]
+
+    # Unwrap lines, taking into account bulleted lists, ordered lists and
+    # underlines consisting of = signs
+    if output.find('\n') != -1:
+        output = re.sub('(?<=\\S)\n(?=[^ \n\t\d\*\-=])', ' ', output)
+
+    # By default we want to trim a single trailing newline from a string since
+    # that is likely from the code formatting, but that trimming is prevented
+    # if strip == False, or if there are two trailing newlines, which means we
+    # actually wanted whitespace at the end
+    if output[-1] == '\n' and strip and output[-2] != '\n':
+        output = output[0:-1]
+
+    if params is not None:
+        output = output % params
+
+    if indent is not None:
+        output = indent + output.replace('\n', '\n' + indent)
+
+    return output
