@@ -770,8 +770,17 @@ def display_results(headline, panel, panel_queue, db_results_file):
 
     # We use a function here so that chars is not redefined in the while
     # loop before the timeout get fired
-    def write_to_panel(chars):
-        sublime.set_timeout(lambda: panel.run_command('insert', {'characters': chars}), 10)
+    if sys.version_info >= (3,):
+        def write_to_panel(chars):
+            sublime.set_timeout(lambda: panel.run_command('insert', {'characters': chars}), 10)
+    else:
+        def do_write(chars):
+            edit = panel.begin_edit('package_coverage_insert', [])
+            panel.insert(edit, panel.size(), chars)
+            panel.end_edit(edit)
+
+        def write_to_panel(chars):
+            sublime.set_timeout(lambda: do_write(chars), 10)
 
     write_to_panel('%s\n\n  ' % headline)
 
