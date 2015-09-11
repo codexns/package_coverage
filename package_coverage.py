@@ -984,7 +984,7 @@ def format_message(string, params=None, strip=True, indent=None):
     # Unwrap lines, taking into account bulleted lists, ordered lists and
     # underlines consisting of = signs
     if output.find('\n') != -1:
-        output = re.sub('(?<=\\S)\n(?=[^ \n\t\d\*\-=])', ' ', output)
+        output = re.sub('(?<=\\S)\n(?=[^ \n\t\\d\\*\\-=])', ' ', output)
 
     # By default we want to trim a single trailing newline from a string since
     # that is likely from the code formatting, but that trimming is prevented
