@@ -841,7 +841,7 @@ def git_commit_info(package_dir):
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-    _, env = shellenv.get_env()
+    _, env = shellenv.get_env(for_subprocess=True)
     proc = subprocess.Popen(
         ['git', 'log', '-n', '1', "--pretty=format:%h %at %s", 'HEAD'],
         stdout=subprocess.PIPE,
@@ -874,7 +874,7 @@ def is_git_clean(package_dir):
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-    _, env = shellenv.get_env()
+    _, env = shellenv.get_env(for_subprocess=True)
     proc = subprocess.Popen(
         ['git', 'status', '--porcelain'],
         stdout=subprocess.PIPE,
