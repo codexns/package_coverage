@@ -121,8 +121,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
             new_root = '.' + os.sep + package_name
             new_output = []
             for line in output.splitlines():
-                line_parts = re.split('\\s+', line)
-                if len(line_parts) == 4:
+                if re.search('\\s+\\d+\\s+\\d+\\s+\\d+%$', line):
                     if not short_package_dir:
                         line = line.replace(package_dir, new_root)
                     else:
