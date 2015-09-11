@@ -635,7 +635,6 @@ class PackageCoverageCleanupReportsCommand(sublime_plugin.WindowCommand):
         # notice to be run from the main UI thread
         def show_completed():
             message = 'Package Coverage: coverage reports successfully cleaned for %s' % package_name
-            print(message)
             sublime.status_message(message)
 
         sublime.set_timeout(show_completed, 10)
