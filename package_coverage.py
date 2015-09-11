@@ -20,6 +20,9 @@ import shutil
 from datetime import datetime
 from textwrap import dedent
 
+if sys.platform == 'win32':
+    from ctypes import windll, create_unicode_buffer
+
 if sys.version_info >= (3,):
     from io import StringIO
 else:
@@ -70,7 +73,16 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
 
         db_results_file = None
         if self.do_coverage:
-            cov = coverage.Coverage(include='%s/*.py' % package_dir, omit='%s/dev/*.py' % package_dir)
+            include_dir = os.path.join(package_dir, '*.py')
+            omit_dir = os.path.join(package_dir, 'dev', '*.py')
+            if sys.platform == 'win32':
+                short_include_dir = create_short_path(os.path.dirname(include_dir))
+                if short_include_dir:
+                    include_dir = [include_dir, os.path.join(short_include_dir, '*.py')]
+                short_omit_dir = create_short_path(os.path.dirname(omit_dir))
+                if short_omit_dir:
+                    omit_dir = [omit_dir, os.path.join(short_omit_dir, '*.py')]
+            cov = coverage.Coverage(include=include_dir, omit=omit_dir)
             cov.start()
             db_results_file = StringIO()
             title = 'Measuring %s Coverage' % package_name
@@ -101,8 +113,32 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
 
             output = buffer.getvalue()
 
+            all_short = False
+            short_package_dir = None
+            if sys.platform == 'win32':
+                short_package_dir = create_short_path(package_dir)
+                all_short = True
+            new_root = '.' + os.sep + package_name
+            new_output = []
+            for line in output.splitlines():
+                line_parts = re.split('\\s+', line)
+                if len(line_parts) == 4:
+                    if not short_package_dir:
+                        line = line.replace(package_dir, new_root)
+                    else:
+                        for possible_prefix in [package_dir, short_package_dir]:
+                            if line.startswith(possible_prefix):
+                                line = line.replace(possible_prefix, new_root)
+                                if possible_prefix == package_dir:
+                                    all_short = False
+                                break
+                new_output.append(line)
+            output = '\n'.join(new_output)
+
+            if all_short:
+                old_length = len(short_package_dir)
+
             # Shorten the file paths to be relative to the Packages dir
-            output = output.replace(package_dir, './' + package_name)
             output = output.replace('-' * old_length, '-' * new_length)
             output = output.replace('Name' + (' ' * (old_length - 4)), 'Name' + (' ' * (new_length - 4)))
             output = output.replace('TOTAL' + (' ' * (old_length - 5)), 'TOTAL' + (' ' * (new_length - 5)))
@@ -132,7 +168,10 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
             }.get(sys.platform, 'linux')
 
             python_version = '%s.%s' % sys.version_info[0:2]
-            path_prefix = package_dir + os.sep
+            if all_short:
+                path_prefix = short_package_dir + os.sep
+            else:
+                path_prefix = package_dir + os.sep
             output = db_results_file.getvalue()
 
             cursor = db.cursor()
@@ -190,7 +229,7 @@ class PackageCoverageSetDatabasePathCommand(sublime_plugin.WindowCommand):
             self.has_project = len(self.window.project_file_name()) > 0
 
         coverage_settings = sublime.load_settings('Package Coverage.sublime-settings')
-        example_location = os.path.expanduser('~/Dropbox/package_coverage.sqlite')
+        example_location = os.path.expanduser(os.path.join('~', 'Dropbox', 'package_coverage.sqlite'))
         existing_coverage_database = get_setting(
             self.window,
             coverage_settings,
@@ -781,12 +820,18 @@ def git_commit_info(package_dir):
         [2] A unicode string of the commit message summary
     """
 
+    startupinfo = None
+    if sys.platform == 'win32':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
     _, env = shellenv.get_env()
     proc = subprocess.Popen(
         ['git', 'log', '-n', '1', "--pretty=format:%h %at %s", 'HEAD'],
         stdout=subprocess.PIPE,
         env=env,
-        cwd=package_dir
+        cwd=package_dir,
+        startupinfo=startupinfo
     )
     stdout, stderr = proc.communicate()
     if stderr:
@@ -807,12 +852,18 @@ def is_git_clean(package_dir):
         A boolean - if the repository is clean
     """
 
+    startupinfo = None
+    if sys.platform == 'win32':
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
     _, env = shellenv.get_env()
     proc = subprocess.Popen(
         ['git', 'status', '--porcelain'],
         stdout=subprocess.PIPE,
         env=env,
-        cwd=package_dir
+        cwd=package_dir,
+        startupinfo=startupinfo
     )
     stdout, stderr = proc.communicate()
     if stderr:
@@ -939,3 +990,24 @@ def format_message(string, params=None, strip=True, indent=None):
         output = indent + output.replace('\n', '\n' + indent)
 
     return output
+
+
+if sys.platform == 'win32':
+    def create_short_path(path):
+        """
+        Returns the 8.3 formatted version of a path, if available
+
+        :param path:
+            A unicode string of a file path
+
+        :return:
+            None if no 8.3 path, otherwise a unicode string of the short path
+        """
+
+        short_path = path
+        buf = create_unicode_buffer(512)
+        if windll.kernel32.GetShortPathNameW(path, buf, len(buf)):
+            short_path = buf.value
+        if short_path != path:
+            return short_path
+        return None
