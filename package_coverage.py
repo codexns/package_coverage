@@ -149,7 +149,16 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         t1.join()
 
         if self.do_coverage and db:
-            if not is_git_clean(package_dir):
+            try:
+                is_clean = is_git_clean(package_dir)
+            except (OSError) as e:
+                print(format_message('''
+                    Package Coverage: not saving results to coverage database
+                    since an error occurred fetching the git status: %s
+                ''', e.args[0]))
+                return
+
+            if not is_clean:
                 print(format_message('''
                     Package Coverage: not saving results to coverage database
                     since git repository has modified files
@@ -829,6 +838,7 @@ def git_commit_info(package_dir):
     proc = subprocess.Popen(
         ['git', 'log', '-n', '1', "--pretty=format:%h %at %s", 'HEAD'],
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         env=env,
         cwd=package_dir,
         startupinfo=startupinfo
@@ -861,6 +871,7 @@ def is_git_clean(package_dir):
     proc = subprocess.Popen(
         ['git', 'status', '--porcelain'],
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         env=env,
         cwd=package_dir,
         startupinfo=startupinfo
