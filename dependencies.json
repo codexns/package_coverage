@@ -25,7 +25,14 @@
 		]
 	},
 	"linux": {
-		"*": [
+		">=3000": [
+			"multiprocessing",
+			"coverage",
+			"sqlite3",
+			"shellenv"
+		],
+		"<3000": [
+			"fileio",
 			"multiprocessing",
 			"coverage",
 			"sqlite3",
