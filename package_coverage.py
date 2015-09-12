@@ -138,7 +138,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
                 old_length = len(short_package_dir)
 
             # Shorten the file paths to be relative to the Packages dir
-            output = output.replace('-' * old_length, '-' * new_length)
+            output = output.replace('\n' + ('-' * old_length), '\n' + ('-' * new_length))
             output = output.replace('Name' + (' ' * (old_length - 4)), 'Name' + (' ' * (new_length - 4)))
             output = output.replace('TOTAL' + (' ' * (old_length - 5)), 'TOTAL' + (' ' * (new_length - 5)))
 
