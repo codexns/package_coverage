@@ -113,6 +113,11 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
 
             output = buffer.getvalue()
 
+            st2_linux = sys.platform not in set(['win32', 'darwin']) and sys.version_info < (3,)
+            missing_home_dir = False
+            if st2_linux:
+                home_dir = os.path.expanduser('~') + os.sep
+
             all_short = False
             short_package_dir = None
             if sys.platform == 'win32':
@@ -123,7 +128,13 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
             for line in output.splitlines():
                 if re.search('\\s+\\d+\\s+\\d+\\s+\\d+%$', line):
                     if not short_package_dir:
-                        line = line.replace(package_dir, new_root)
+                        # ST2 on Linux with coverage.py seems to result in
+                        # file paths tha are missing the user's home dir
+                        if st2_linux and (home_dir + line).find(package_dir) != -1:
+                            missing_home_dir = True
+                            line = (home_dir + line).replace(package_dir, new_root)
+                        else:
+                            line = line.replace(package_dir, new_root)
                     else:
                         for possible_prefix in [package_dir, short_package_dir]:
                             if line.startswith(possible_prefix):
@@ -136,6 +147,9 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
 
             if all_short:
                 old_length = len(short_package_dir)
+
+            if missing_home_dir:
+                old_length = old_length - len(home_dir)
 
             # Shorten the file paths to be relative to the Packages dir
             output = output.replace('\n' + ('-' * old_length), '\n' + ('-' * new_length))
