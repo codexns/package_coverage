@@ -102,18 +102,22 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         t2.join()
 
         if self.do_coverage:
+            st2_linux = sys.platform not in set(['win32', 'darwin']) and sys.version_info < (3,)
+
             panel_queue.write('\n')
             cov.stop()
             cov_data = cov.get_data()
             buffer = StringIO()
-            cov.report(show_missing=False, file=buffer)
+            # Errors are ignored with ST2 on Linux due to what appear to be issues with
+            # coverage not properly handling file paths on Python 2.6 and Linux
+            ignore_errors = st2_linux
+            cov.report(show_missing=False, ignore_errors=ignore_errors, file=buffer)
 
             old_length = len(package_dir)
             new_length = len(package_name) + 2
 
             output = buffer.getvalue()
 
-            st2_linux = sys.platform not in set(['win32', 'darwin']) and sys.version_info < (3,)
             missing_home_dir = False
             if st2_linux:
                 home_dir = os.path.expanduser('~') + os.sep
