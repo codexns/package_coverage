@@ -29,6 +29,10 @@ else:
     from cStringIO import StringIO
 
 
+__version__ = '1.0.4'
+__version_info__ = (1, 0, 4)
+
+
 class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
 
     """
