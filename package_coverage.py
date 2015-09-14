@@ -82,6 +82,19 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
                 short_omit_dir = create_short_path(os.path.dirname(omit_dir))
                 if short_omit_dir:
                     omit_dir = [omit_dir, os.path.join(short_omit_dir, '*.py')]
+            # Depending on the folder launched from with ST2 on Linux, the current
+            # folder seems to have a big impact on how coverage selects code to
+            # measure, and can even lead to measuring stdlib code, but then producing
+            # errors when it can not find the source to said stdlib files. To work
+            # around this, we explicitly enumerate every .py file in the package and
+            # pass then all via include_dir.
+            elif sys.platform not in set(['win32', 'darwin']) and sys.version_info < (3,):
+                include_dir = []
+                for root, dir_names, file_names in os.walk(package_dir):
+                    for file_name in file_names:
+                        if not file_name.endswith('.py'):
+                            continue
+                        include_dir.append(os.path.join(root, file_name))
             cov = coverage.Coverage(include=include_dir, omit=omit_dir)
             cov.start()
             db_results_file = StringIO()
@@ -102,25 +115,16 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         t2.join()
 
         if self.do_coverage:
-            st2_linux = sys.platform not in set(['win32', 'darwin']) and sys.version_info < (3,)
-
             panel_queue.write('\n')
             cov.stop()
             cov_data = cov.get_data()
             buffer = StringIO()
-            # Errors are ignored with ST2 on Linux due to what appear to be issues with
-            # coverage not properly handling file paths on Python 2.6 and Linux
-            ignore_errors = st2_linux
-            cov.report(show_missing=False, ignore_errors=ignore_errors, file=buffer)
+            cov.report(show_missing=False, file=buffer)
 
             old_length = len(package_dir)
             new_length = len(package_name) + 2
 
             output = buffer.getvalue()
-
-            missing_home_dir = False
-            if st2_linux:
-                home_dir = os.path.expanduser('~') + os.sep
 
             all_short = False
             short_package_dir = None
@@ -132,13 +136,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
             for line in output.splitlines():
                 if re.search('\\s+\\d+\\s+\\d+\\s+\\d+%$', line):
                     if not short_package_dir:
-                        # ST2 on Linux with coverage.py seems to result in
-                        # file paths tha are missing the user's home dir
-                        if st2_linux and (home_dir + line).find(package_dir) != -1:
-                            missing_home_dir = True
-                            line = (home_dir + line).replace(package_dir, new_root)
-                        else:
-                            line = line.replace(package_dir, new_root)
+                        line = line.replace(package_dir, new_root)
                     else:
                         for possible_prefix in [package_dir, short_package_dir]:
                             if line.startswith(possible_prefix):
@@ -151,9 +149,6 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
 
             if all_short:
                 old_length = len(short_package_dir)
-
-            if missing_home_dir:
-                old_length = old_length - len(home_dir)
 
             # Shorten the file paths to be relative to the Packages dir
             output = output.replace('\n' + ('-' * old_length), '\n' + ('-' * new_length))
