@@ -106,133 +106,145 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         panel_queue = StringQueue()
 
         self.window.run_command('show_panel', {'panel': 'output.%s_tests' % package_name})
-        t1 = threading.Thread(target=display_results, args=(title, panel, panel_queue, db_results_file))
-        t2 = threading.Thread(target=run_tests, args=(tests_module, panel_queue))
 
-        t1.start()
-        t2.start()
+        # Variables shared between the two threads. There is no locking here
+        # since the two threads strictly run one after the other. Would use
+        # nonlocal here if we didn't have to support Python 2.6.
+        thread_vars = {
+            'all_short': None,
+            'short_package_dir': None,
+            'cov_data': None
+        }
 
-        t2.join()
+        def done_displaying_results():
+            if self.do_coverage and db:
+                try:
+                    is_clean = is_git_clean(package_dir)
+                except (OSError) as e:
+                    print(format_message('''
+                        Package Coverage: not saving results to coverage database
+                        since an error occurred fetching the git status: %s
+                    ''', e.args[0]))
+                    return
 
-        if self.do_coverage:
-            panel_queue.write('\n')
-            cov.stop()
-            cov_data = cov.get_data()
-            buffer = StringIO()
-            cov.report(show_missing=False, file=buffer)
+                if not is_clean:
+                    print(format_message('''
+                        Package Coverage: not saving results to coverage database
+                        since git repository has modified files
+                    '''))
+                    return
 
-            old_length = len(package_dir)
-            new_length = len(package_name) + 2
+                commit_hash, commit_date, summary = git_commit_info(package_dir)
 
-            output = buffer.getvalue()
+                data_file = StringIO()
+                thread_vars['cov_data'].write_fileobj(data_file)
+                data_bytes = data_file.getvalue()
 
-            all_short = False
-            short_package_dir = None
-            if sys.platform == 'win32':
-                short_package_dir = create_short_path(package_dir)
-                all_short = True
-            new_root = '.' + os.sep + package_name
-            new_output = []
-            for line in output.splitlines():
-                if re.search('\\s+\\d+\\s+\\d+\\s+\\d+%$', line):
-                    if not short_package_dir:
-                        line = line.replace(package_dir, new_root)
-                    else:
-                        for possible_prefix in [package_dir, short_package_dir]:
-                            if line.startswith(possible_prefix):
-                                line = line.replace(possible_prefix, new_root)
-                                if possible_prefix == package_dir:
-                                    all_short = False
-                                break
-                new_output.append(line)
-            output = '\n'.join(new_output)
+                platform = {
+                    'win32': 'windows',
+                    'darwin': 'osx'
+                }.get(sys.platform, 'linux')
 
-            if all_short:
-                old_length = len(short_package_dir)
+                python_version = '%s.%s' % sys.version_info[0:2]
+                if thread_vars['all_short']:
+                    path_prefix = thread_vars['short_package_dir'] + os.sep
+                else:
+                    path_prefix = package_dir + os.sep
+                output = db_results_file.getvalue()
 
-            # Shorten the file paths to be relative to the Packages dir
-            output = output.replace('\n' + ('-' * old_length), '\n' + ('-' * new_length))
-            output = output.replace('Name' + (' ' * (old_length - 4)), 'Name' + (' ' * (new_length - 4)))
-            output = output.replace('TOTAL' + (' ' * (old_length - 5)), 'TOTAL' + (' ' * (new_length - 5)))
-
-            panel_queue.write(output)
-
-        panel_queue.write('\x04')
-        t1.join()
-
-        if self.do_coverage and db:
-            try:
-                is_clean = is_git_clean(package_dir)
-            except (OSError) as e:
-                print(format_message('''
-                    Package Coverage: not saving results to coverage database
-                    since an error occurred fetching the git status: %s
-                ''', e.args[0]))
-                return
-
-            if not is_clean:
-                print(format_message('''
-                    Package Coverage: not saving results to coverage database
-                    since git repository has modified files
-                '''))
-                return
-
-            commit_hash, commit_date, summary = git_commit_info(package_dir)
-
-            data_file = StringIO()
-            cov_data.write_fileobj(data_file)
-            data_bytes = data_file.getvalue()
-
-            platform = {
-                'win32': 'windows',
-                'darwin': 'osx'
-            }.get(sys.platform, 'linux')
-
-            python_version = '%s.%s' % sys.version_info[0:2]
-            if all_short:
-                path_prefix = short_package_dir + os.sep
-            else:
-                path_prefix = package_dir + os.sep
-            output = db_results_file.getvalue()
-
-            cursor = db.cursor()
-            cursor.execute("""
-                INSERT INTO coverage_results (
-                    project,
+                cursor = db.cursor()
+                cursor.execute("""
+                    INSERT INTO coverage_results (
+                        project,
+                        commit_hash,
+                        commit_summary,
+                        commit_date,
+                        data,
+                        platform,
+                        python_version,
+                        path_prefix,
+                        output
+                    ) VALUES (
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?,
+                        ?
+                    )
+                """, (
+                    package_name,
                     commit_hash,
-                    commit_summary,
+                    summary,
                     commit_date,
-                    data,
+                    data_bytes,
                     platform,
                     python_version,
                     path_prefix,
                     output
-                ) VALUES (
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?,
-                    ?
-                )
-            """, (
-                package_name,
-                commit_hash,
-                summary,
-                commit_date,
-                data_bytes,
-                platform,
-                python_version,
-                path_prefix,
-                output
-            ))
-            db.commit()
-            cursor.close()
+                ))
+                db.commit()
+                cursor.close()
 
-            print('Package Coverage: saved results to coverage database')
+                print('Package Coverage: saved results to coverage database')
+
+        def done_running_tests():
+            if self.do_coverage:
+                panel_queue.write('\n')
+                cov.stop()
+                thread_vars['cov_data'] = cov.get_data()
+                buffer = StringIO()
+                cov.report(show_missing=False, file=buffer)
+
+                old_length = len(package_dir)
+                new_length = len(package_name) + 2
+
+                output = buffer.getvalue()
+
+                thread_vars['all_short'] = False
+                thread_vars['short_package_dir'] = None
+                if sys.platform == 'win32':
+                    thread_vars['short_package_dir'] = create_short_path(package_dir)
+                    thread_vars['all_short'] = True
+                new_root = '.' + os.sep + package_name
+                new_output = []
+                for line in output.splitlines():
+                    if re.search('\\s+\\d+\\s+\\d+\\s+\\d+%$', line):
+                        if not thread_vars['short_package_dir']:
+                            line = line.replace(package_dir, new_root)
+                        else:
+                            for possible_prefix in [package_dir, thread_vars['short_package_dir']]:
+                                if line.startswith(possible_prefix):
+                                    line = line.replace(possible_prefix, new_root)
+                                    if possible_prefix == package_dir:
+                                        thread_vars['all_short'] = False
+                                    break
+                    new_output.append(line)
+                output = '\n'.join(new_output)
+
+                if thread_vars['all_short']:
+                    old_length = len(thread_vars['short_package_dir'])
+
+                # Shorten the file paths to be relative to the Packages dir
+                output = output.replace('\n' + ('-' * old_length), '\n' + ('-' * new_length))
+                output = output.replace('Name' + (' ' * (old_length - 4)), 'Name' + (' ' * (new_length - 4)))
+                output = output.replace('TOTAL' + (' ' * (old_length - 5)), 'TOTAL' + (' ' * (new_length - 5)))
+
+                panel_queue.write(output)
+
+            panel_queue.write('\x04')
+
+        threading.Thread(
+            target=display_results,
+            args=(title, panel, panel_queue, db_results_file, done_displaying_results)
+        ).start()
+        threading.Thread(
+            target=run_tests,
+            args=(tests_module, panel_queue, done_running_tests)
+        ).start()
 
 
 class PackageCoverageSetDatabasePathCommand(sublime_plugin.WindowCommand):
@@ -763,7 +775,7 @@ def create_resources(window, package_name, package_dir):
     return (tests_module, panel)
 
 
-def display_results(headline, panel, panel_queue, db_results_file):
+def display_results(headline, panel, panel_queue, db_results_file, on_done):
     """
     Displays the results of a test run
 
@@ -779,6 +791,9 @@ def display_results(headline, panel, panel_queue, db_results_file):
     :param db_results_file:
         None or a StringIO object so output can be saved in the coverage
         database
+
+    :param on_done:
+        A callback to execute when the results are done being printed
     """
 
     # We use a function here so that chars is not redefined in the while
@@ -817,8 +832,10 @@ def display_results(headline, panel, panel_queue, db_results_file):
             db_results_file.write(chars)
         write_to_panel(wrapped_chars)
 
+    on_done()
 
-def run_tests(tests_module, queue):
+
+def run_tests(tests_module, queue, on_done):
     """
     Executes the tests within a module and sends the output through the queue
     for display via another thread
@@ -828,10 +845,15 @@ def run_tests(tests_module, queue):
 
     :param queue:
         A StringQueue object to send the results to
+
+    :param on_done:
+        A callback to execute when the tests are done being run
     """
 
     suite = unittest.TestLoader().loadTestsFromModule(tests_module)
     unittest.TextTestRunner(stream=queue, verbosity=1).run(suite)
+
+    on_done()
 
 
 def git_commit_info(package_dir):
