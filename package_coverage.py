@@ -25,6 +25,7 @@ if sys.platform == 'win32':
 
 if sys.version_info >= (3,):
     from io import StringIO
+    from imp import reload
 else:
     from cStringIO import StringIO
 
@@ -784,19 +785,23 @@ def create_resources(window, package_name, package_dir):
     tests_module_name = '%s.dev.tests' % package_name
     reloader_module_name = '%s.dev.reloader' % package_name
 
-    for mod_name in [dev_module_name, tests_module_name, reloader_module_name]:
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
-
     if os.path.exists(reloader_path):
-        reloader_module_info = imp.find_module('reloader', ["./dev"])
-        imp.load_module(reloader_module_name, *reloader_module_info)
+        if reloader_module_name in sys.modules:
+            reload(sys.modules[reloader_module_name])
+        else:
+            reloader_module_info = imp.find_module('reloader', [os.path.join(package_dir, 'dev')])
+            imp.load_module(reloader_module_name, *reloader_module_info)
 
-    dev_module_info = imp.find_module('dev', ["."])
-    imp.load_module(dev_module_name, *dev_module_info)
+    if tests_module_name in sys.modules:
+        tests_module = sys.modules[tests_module_name]
+        reload(tests_module)
 
-    tests_module_info = imp.find_module('tests', ["./dev"])
-    tests_module = imp.load_module(tests_module_name, *tests_module_info)
+    else:
+        dev_module_info = imp.find_module('dev', [package_dir])
+        imp.load_module(dev_module_name, *dev_module_info)
+
+        tests_module_info = imp.find_module('tests', [os.path.join(package_dir, 'dev')])
+        tests_module = imp.load_module(tests_module_name, *tests_module_info)
 
     os.chdir(old_path)
 
