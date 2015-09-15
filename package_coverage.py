@@ -39,7 +39,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
     Runs the tests for a package and displays the output in an output panel
     """
 
-    def run(self, do_coverage=False):
+    def run(self, do_coverage=False, ui_thread=False):
         testable_packages = find_testable_packages()
 
         if not testable_packages:
@@ -53,6 +53,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         settings = sublime.load_settings('Package Coverage.sublime-settings')
         self.coverage_database = get_setting(self.window, settings, 'coverage_database')
         self.do_coverage = do_coverage
+        self.ui_thread = ui_thread
         self.packages = testable_packages
         self.window.show_quick_panel(testable_packages, self.on_done)
 
@@ -245,10 +246,15 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
             target=display_results,
             args=(title, panel, panel_queue, db_results_file, done_displaying_results)
         ).start()
-        threading.Thread(
-            target=run_tests,
-            args=(tests_module, panel_queue, done_running_tests)
-        ).start()
+
+        if self.ui_thread:
+            run_tests(tests_module, panel_queue, done_running_tests)
+
+        else:
+            threading.Thread(
+                target=run_tests,
+                args=(tests_module, panel_queue, done_running_tests)
+            ).start()
 
 
 class PackageCoverageSetDatabasePathCommand(sublime_plugin.WindowCommand):
