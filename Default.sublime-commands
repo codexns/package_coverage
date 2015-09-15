@@ -26,6 +26,23 @@
         }
     },
     {
+        "caption": "Package Coverage: Measure Coverage with HTML Report",
+        "command": "package_coverage_exec", "args":
+        {
+            "do_coverage": true,
+            "html_report": true
+        }
+    },
+    {
+        "caption": "Package Coverage: Measure Coverage in UI Thread with HTML Report",
+        "command": "package_coverage_exec", "args":
+        {
+            "do_coverage": true,
+            "ui_thread": true,
+            "html_report": true
+        }
+    },
+    {
         "caption": "Package Coverage: Set Database Path",
         "command": "package_coverage_set_database_path"
     },

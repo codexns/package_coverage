@@ -39,7 +39,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
     Runs the tests for a package and displays the output in an output panel
     """
 
-    def run(self, do_coverage=False, ui_thread=False):
+    def run(self, do_coverage=False, ui_thread=False, html_report=False):
         testable_packages = find_testable_packages()
 
         if not testable_packages:
@@ -54,6 +54,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         self.coverage_database = get_setting(self.window, settings, 'coverage_database')
         self.do_coverage = do_coverage
         self.ui_thread = ui_thread
+        self.html_report = html_report
         self.packages = testable_packages
         self.window.show_quick_panel(testable_packages, self.on_done)
 
@@ -239,6 +240,23 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
                 output = output.replace('TOTAL' + (' ' * (old_length - 5)), 'TOTAL' + (' ' * (new_length - 5)))
 
                 panel_queue.write(output)
+
+                if self.html_report:
+                    coverage_reports_dir = os.path.join(package_dir, 'dev', 'coverage_reports')
+                    if not os.path.exists(coverage_reports_dir):
+                        os.mkdir(coverage_reports_dir)
+
+                    report_dir = os.path.join(coverage_reports_dir, 'temp')
+                    if not os.path.exists(report_dir):
+                        os.mkdir(report_dir)
+
+                    title = '%s coverage report' % package_name
+                    cov.html_report(directory=report_dir, title=title)
+
+                    html_path = os.path.join(report_dir, 'index.html')
+                    if sys.platform != 'win32':
+                        html_path = 'file://' + html_path
+                    webbrowser.open_new(html_path)
 
             panel_queue.write('\x04')
 
