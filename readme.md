@@ -104,7 +104,11 @@ for pkg_file in pkg_files:
 Package Coverage provides the following command via the command palette:
 
  - [Run Tests](#run-tests)
+ - [Run Tests in UI Thread](#run-tests-in-ui-thread)
  - [Measure Coverage](#measure-coverage)
+ - [Measure Coverage in UI Thread](#measure-coverage-in-ui-thread)
+ - [Measure Coverage with HTML Report](#measure-coverage-with-html-report)
+ - [Measure Coverage in UI Thread with HTML Report](#measure-coverage-in-ui-thread-with-html-report)
  - [Set Database Path](#set-database-path)
  - [Display Report](#display-report)
  - [Cleanup Reports](#cleanup-reports)
@@ -114,8 +118,15 @@ Package Coverage provides the following command via the command palette:
 This command runs the tests contained within `dev/tests.py` and outputs the
 results in a output panel at the bottom of Sublime Text.
 
-Uses the quick panel to prompt the user for the package to test. *Only packages
-in the `Packages/` folder with a file named `dev/tests.py` will be presented.*
+Uses the quick panel to prompt the user for the package to test. Tests are run
+in a background thread, meaning the `sublime` API will not be accessible. *Only
+packages in the `Packages/` folder with a file named `dev/tests.py` will be
+presented.*
+
+### Run Tests in UI Thread
+
+The same as *Run Tests*, except the test are run in the UI thread, allowing
+access to the `sublime` API.
 
 ### Measure Coverage
 
@@ -123,8 +134,25 @@ This command runs the tests in `dev/tests.py` and measures the code coverage.
 If a database path has been set, it saves the results in the SQLite coverage
 database.
 
-Uses the quick panel to prompt the user for the package to test. *Only packages
-in the `Packages/` folder with a file named `dev/tests.py` will be presented.*
+Uses the quick panel to prompt the user for the package to test. Tests are run
+in a background thread, meaning the `sublime` API will not be accessible. *Only
+packages in the `Packages/` folder with a file named `dev/tests.py` will be
+presented.*
+
+### Measure Coverage in UI Thread
+
+The same as *Measure Coverage*, except the test are run in the UI thread,
+allowing access to the `sublime` API.
+
+### Measure Coverage with HTML Report
+
+The same as *Measure Coverage*, except in addition to the output panel, an HTML
+report will be generated and opened in the user's default web browser.
+
+### Measure Coverage in UI Thread with HTML Report
+
+The same as *Measure Coverage with HTML Report*, except the test are run in the
+UI thread, allowing access to the `sublime` API.
 
 ### Set Database Path
 
