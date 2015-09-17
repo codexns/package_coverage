@@ -74,10 +74,6 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         package_name = self.packages[index]
         package_dir = os.path.join(sublime.packages_path(), package_name)
 
-        db = None
-        if self.coverage_database:
-            db = open_database(self.coverage_database)
-
         db_results_file = None
         if self.do_coverage:
             include_dir = os.path.join(package_dir, '*.py')
@@ -124,7 +120,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         }
 
         def done_displaying_results():
-            if self.do_coverage and db:
+            if self.do_coverage and self.coverage_database:
                 try:
                     is_clean = is_git_clean(package_dir)
                 except (OSError) as e:
@@ -159,7 +155,8 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
                     path_prefix = package_dir + os.sep
                 output = db_results_file.getvalue()
 
-                cursor = db.cursor()
+                connection = open_database(self.coverage_database)
+                cursor = connection.cursor()
                 cursor.execute("""
                     INSERT INTO coverage_results (
                         project,
@@ -193,7 +190,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
                     path_prefix,
                     output
                 ))
-                db.commit()
+                connection.commit()
                 cursor.close()
 
                 print('Package Coverage: saved results to coverage database')
