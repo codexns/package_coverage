@@ -128,6 +128,16 @@ presented.*
 The same as *Run Tests*, except the test are run in the UI thread, allowing
 access to the `sublime` API.
 
+### Run Tests by Name
+
+The same as *Run Tests*, except the user may enter a regular expression to
+filter the tests to run, by their name.
+
+### Run Tests in UI Thread by Name
+
+The same as *Run Tests in UI Thread*, except the user may enter a regular
+expression to filter the tests to run, by their name.
+
 ### Measure Coverage
 
 This command runs the tests in `dev/tests.py` and measures the code coverage.

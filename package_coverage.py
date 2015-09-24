@@ -17,6 +17,7 @@ import sqlite3
 import subprocess
 import webbrowser
 import shutil
+import inspect
 from datetime import datetime
 from textwrap import dedent
 
@@ -30,8 +31,8 @@ else:
     from cStringIO import StringIO
 
 
-__version__ = '1.0.5'
-__version_info__ = (1, 0, 5)
+__version__ = '1.1.0'
+__version_info__ = (1, 1, 0)
 
 
 class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
@@ -40,7 +41,7 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
     Runs the tests for a package and displays the output in an output panel
     """
 
-    def run(self, do_coverage=False, ui_thread=False, html_report=False):
+    def run(self, do_coverage=False, ui_thread=False, html_report=False, by_name=False):
         testable_packages = find_testable_packages()
 
         if not testable_packages:
@@ -57,6 +58,8 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         self.ui_thread = ui_thread
         self.html_report = html_report
         self.packages = testable_packages
+        self.by_name = by_name
+        self.name_pattern = None
         self.window.show_quick_panel(testable_packages, self.on_done)
 
     def on_done(self, index):
@@ -71,7 +74,36 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         if index == -1:
             return
 
-        package_name = self.packages[index]
+        self.package_name = self.packages[index]
+
+        if not self.by_name:
+            return self.run_tests()
+
+        self.prompt_name_pattern()
+
+    def prompt_name_pattern(self, initial=''):
+        def handle_pattern(pattern):
+            try:
+                self.name_pattern = re.compile(pattern)
+                self.run_tests()
+            except (re.error):
+                sublime.error_message(format_message('''
+                    Package Coverage
+
+                    The pattern entered could not be compiled as a regular expression
+                '''))
+                self.prompt_name_pattern(pattern)
+
+        self.window.show_input_panel(
+            'Name Regex',
+            initial,
+            handle_pattern,
+            None,
+            None
+        )
+
+    def run_tests(self):
+        package_name = self.package_name
         package_dir = os.path.join(sublime.packages_path(), package_name)
 
         db_results_file = None
@@ -264,12 +296,12 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         ).start()
 
         if self.ui_thread:
-            run_tests(tests_module, panel_queue, done_running_tests)
+            run_tests(tests_module, panel_queue, self.name_pattern, done_running_tests)
 
         else:
             threading.Thread(
                 target=run_tests,
-                args=(tests_module, panel_queue, done_running_tests)
+                args=(tests_module, panel_queue, self.name_pattern, done_running_tests)
             ).start()
 
 
@@ -865,7 +897,7 @@ def display_results(headline, panel, panel_queue, db_results_file, on_done):
     on_done()
 
 
-def run_tests(tests_module, queue, on_done):
+def run_tests(tests_module, queue, name_pattern, on_done):
     """
     Executes the tests within a module and sends the output through the queue
     for display via another thread
@@ -876,12 +908,29 @@ def run_tests(tests_module, queue, on_done):
     :param queue:
         A StringQueue object to send the results to
 
+    :param name_pattern:
+        None or a re._pattern_type object for matching test names against
+
     :param on_done:
         A callback to execute when the tests are done being run
     """
 
-    suite = unittest.TestLoader().loadTestsFromModule(tests_module)
-    unittest.TextTestRunner(stream=queue, verbosity=1).run(suite)
+    test_classes = []
+    for name, obj in inspect.getmembers(tests_module):
+        if inspect.isclass(obj) and issubclass(obj, unittest.TestCase):
+            test_classes.append(obj)
+
+    suite = unittest.TestSuite()
+    loader = unittest.TestLoader()
+    for test_class in test_classes:
+        if name_pattern:
+            for name in loader.getTestCaseNames(test_class):
+                if name_pattern.search(name):
+                    suite.addTest(test_class(name))
+        else:
+            suite.addTest(loader.loadTestsFromTestCase(test_class))
+    verbosity = 2 if name_pattern else 1
+    unittest.TextTestRunner(stream=queue, verbosity=verbosity).run(suite)
 
     on_done()
 

@@ -11,6 +11,21 @@
         }
     },
     {
+        "caption": "Package Coverage: Run Tests by Name",
+        "command": "package_coverage_exec", "args":
+        {
+            "by_name": true
+        }
+    },
+    {
+        "caption": "Package Coverage: Run Tests in UI Thread by Name",
+        "command": "package_coverage_exec", "args":
+        {
+            "ui_thread": true,
+            "by_name": true
+        }
+    },
+    {
         "caption": "Package Coverage: Measure Coverage",
         "command": "package_coverage_exec", "args":
         {
