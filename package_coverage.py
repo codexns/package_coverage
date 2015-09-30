@@ -140,7 +140,10 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         tests_module, panel = create_resources(self.window, package_name, package_dir)
         panel_queue = StringQueue()
 
-        self.window.run_command('show_panel', {'panel': 'output.%s_tests' % package_name})
+        def show_output_panel():
+            self.window.run_command('show_panel', {'panel': 'output.%s_tests' % package_name})
+
+        show_output_panel()
 
         # Variables shared between the two threads. There is no locking here
         # since the two threads strictly run one after the other. Would use
@@ -152,6 +155,8 @@ class PackageCoverageExecCommand(sublime_plugin.WindowCommand):
         }
 
         def done_displaying_results():
+            sublime.set_timeout(show_output_panel, 10)
+
             if self.do_coverage and self.coverage_database:
                 try:
                     is_clean = is_git_clean(package_dir)
